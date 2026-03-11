@@ -1,6 +1,7 @@
 /* ============================================================
    PULSE — Doctor Dashboard JavaScript
-   Handles: Complete appointment dialog, tab switching
+   Handles: Complete appointment dialog, Cancel appointment
+            dialog (with reason), tab switching
    ============================================================ */
 (function () {
   'use strict';
@@ -27,10 +28,10 @@
       <span>${escHtml(message)}</span></div>`;
   }
 
-  function clearAlert(id)   { const el = $(id); if (el) el.innerHTML = ''; }
+  function clearAlert(id)      { const el = $(id); if (el) el.innerHTML = ''; }
   function setLoading(btn, on) { if (!btn) return; btn.classList.toggle('loading', on); btn.disabled = on; }
-  function openModal(id)    { const m = $(id); if (m) m.classList.add('open'); }
-  function closeModal(id)   { const m = $(id); if (m) m.classList.remove('open'); }
+  function openModal(id)       { const m = $(id); if (m) m.classList.add('open'); }
+  function closeModal(id)      { const m = $(id); if (m) m.classList.remove('open'); }
   function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
   /* ── Date/time formatters ───────────────────────────────── */
@@ -63,7 +64,6 @@
     const form = $('completeForm');
     if (form) form.reset();
 
-    // Re-set hidden field after reset
     const apptInput = $('completeApptId');
     if (apptInput) apptInput.value = appointmentId;
 
@@ -87,7 +87,6 @@
         return;
       }
 
-      // FIX: match the class on the button in doctor_dashboard.php
       const btn  = this.querySelector('.btn-submit-complete');
       const data = new FormData(this);
       data.set('appointment_id', currentApptId);
@@ -97,9 +96,7 @@
 
       setLoading(btn, true);
       try {
-        // FIX: correct relative path from /pages/doctor/ up to /api/
         const res  = await fetch('../../api/complete_appointment.php', { method: 'POST', body: data });
-
         const text = await res.text();
         let json;
         try { json = JSON.parse(text); }
@@ -120,6 +117,72 @@
     });
   }
 
+  /* ══════════════════════════════════════════════════════════
+     CANCEL APPOINTMENT DIALOG (Doctor)
+     Doctor must provide a reason for cancellation.
+     No cancellation fee is charged to the patient.
+  ══════════════════════════════════════════════════════════ */
+  let currentCancelApptId = null;
+
+  window.openDoctorCancelModal = function (appointmentId, patientName, apptDate, apptTime) {
+    currentCancelApptId = appointmentId;
+    clearAlert('doctorCancelAlert');
+
+    const set = (id, val) => { const el = $(id); if (el) el.textContent = val; };
+    set('dcancelPatientName', patientName);
+    set('dcancelApptDate',    formatDate(apptDate) + ' at ' + formatTime(apptTime));
+
+    const form = $('doctorCancelForm');
+    if (form) form.reset();
+
+    const apptInput = $('dcancelApptId');
+    if (apptInput) apptInput.value = appointmentId;
+
+    openModal('doctorCancelModal');
+  };
+
+  window.closeDoctorCancelModal = function () { closeModal('doctorCancelModal'); };
+
+  const doctorCancelForm = $('doctorCancelForm');
+  if (doctorCancelForm) {
+    doctorCancelForm.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      clearAlert('doctorCancelAlert');
+
+      const reason = ($('dcancelReason')?.value || '').trim();
+      if (!reason) {
+        showAlert('doctorCancelAlert', 'Please provide a reason for cancellation.', 'error');
+        return;
+      }
+
+      const btn  = this.querySelector('.btn-submit-doctor-cancel');
+      const data = new FormData(this);
+      data.set('appointment_id', currentCancelApptId);
+      data.set('cancel_reason',  reason);
+
+      setLoading(btn, true);
+      try {
+        const res  = await fetch('../../api/cancel_appointment.php', { method: 'POST', body: data });
+        const text = await res.text();
+        let json;
+        try { json = JSON.parse(text); }
+        catch { showAlert('doctorCancelAlert', 'Server error. Check that XAMPP is running.', 'error'); return; }
+
+        if (json.success) {
+          closeDoctorCancelModal();
+          showToast(json.message, 'warning');
+          setTimeout(() => location.reload(), 1400);
+        } else {
+          showAlert('doctorCancelAlert', json.message, 'error');
+        }
+      } catch {
+        showAlert('doctorCancelAlert', 'Connection error. Please try again.', 'error');
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+  }
+
   /* ── Tab Switcher ───────────────────────────────────────── */
   window.switchDoctorTab = function (tab) {
     document.querySelectorAll('.section-tab').forEach(t => t.classList.remove('active'));
@@ -131,16 +194,22 @@
     if (section)   section.style.display = 'block';
   };
 
-  /* ── Close modal on overlay click ──────────────────────── */
-  const completeModal = $('completeModal');
-  if (completeModal) {
-    completeModal.addEventListener('click', e => {
-      if (e.target === completeModal) closeCompleteModal();
+  /* ── Close modals on overlay click ──────────────────────── */
+  ['completeModal', 'doctorCancelModal'].forEach(id => {
+    const el = $(id);
+    if (el) el.addEventListener('click', e => {
+      if (e.target === el) {
+        if (id === 'completeModal')      closeCompleteModal();
+        if (id === 'doctorCancelModal')  closeDoctorCancelModal();
+      }
     });
-  }
+  });
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeCompleteModal();
+    if (e.key === 'Escape') {
+      closeCompleteModal();
+      closeDoctorCancelModal();
+    }
   });
 
   /* ── Init default tab ───────────────────────────────────── */

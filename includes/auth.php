@@ -23,9 +23,9 @@ function redirectIfLoggedIn(): void {
     if (isset($_SESSION['user_id'])) {
         $base = getBasePath();
         switch ($_SESSION['role'] ?? '') {
-            case 'patient': header('Location: ' . $base . '/pages/patient/dashboard.php'); exit;
-            case 'doctor':  header('Location: ' . $base . '/pages/doctor/dashboard.php');  exit;
-            case 'admin':   header('Location: ' . $base . '/pages/admin/dashboard.php');   exit;
+            case 'patient': header('Location: ' . $base . '/pages/patient/patient_dashboard.php'); exit;
+            case 'doctor':  header('Location: ' . $base . '/pages/doctor/doctor_dashboard.php');  exit;
+            case 'admin':   header('Location: ' . $base . '/pages/admin/admin_dashboard.php');   exit;
         }
     }
 }

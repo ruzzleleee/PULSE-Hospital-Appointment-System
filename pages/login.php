@@ -57,11 +57,11 @@ try {
 
     // Build ABSOLUTE redirect path so JS window.location.href works from any page
     $base = rtrim(dirname(dirname($_SERVER['SCRIPT_NAME'])), '/');
-    $redirectMap = [
-        'patient' => $base . '/pages/patient/dashboard.php',
-        'doctor'  => $base . '/pages/doctor/dashboard.php',
-        'admin'   => $base . '/pages/admin/dashboard.php',
-    ];
+        $redirectMap = [
+            'patient' => $base . '/pages/patient/patient_dashboard.php',
+            'doctor'  => $base . '/pages/doctor/doctor_dashboard.php',
+            'admin'   => $base . '/pages/admin/admin_dashboard.php',
+        ];
 
     echo json_encode([
         'success'  => true,

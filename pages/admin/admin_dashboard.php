@@ -5,9 +5,8 @@ requireRole('admin');
 
 // Stats
 $stats = $pdo->query("CALL sp_get_admin_dashboard_stats()")->fetch();
-$pdo->query("SELECT 1"); // flush extra result sets from stored procedure
+$pdo->query("SELECT 1");
 
-// All appointments grouped
 function getAppointments(PDO $pdo, string $status): array {
     $stmt = $pdo->prepare("SELECT * FROM v_appointment_details WHERE status = ? ORDER BY appointment_date ASC, appointment_time ASC");
     $stmt->execute([$status]);
@@ -19,26 +18,12 @@ $scheduled = getAppointments($pdo, 'Scheduled');
 $completed = getAppointments($pdo, 'Completed');
 $cancelled = getAppointments($pdo, 'Cancelled');
 
-
-// Billings modification: now selecting payment_status and appointment_status for better front-end filtering and display logic. This avoids needing extra queries or complex JS to determine if a cancelled billing is due to a cancelled appointment or just an unpaid bill.
 $billings = $pdo->query("
-    SELECT
-        b.billing_id,
-        b.patient_id,
-        b.appointment_id,
-        b.appointment_fee,
-        b.amount_paid,
-        b.payment_method,
-        b.payment_status,
-        b.billing_date,
-        b.paid_at,
-        a.appointment_date,
-        a.appointment_time,
-        a.appointment_type,
-        a.status            AS appointment_status,
-        p.patient_name,
-        d.doctor_name,
-        d.specialty
+    SELECT b.billing_id, b.patient_id, b.appointment_id, b.appointment_fee,
+           b.amount_paid, b.payment_method, b.payment_status, b.billing_date, b.paid_at,
+           a.appointment_date, a.appointment_time, a.appointment_type,
+           a.status AS appointment_status,
+           p.patient_name, d.doctor_name, d.specialty
     FROM billings b
     JOIN appointments a  ON a.appointment_id = b.appointment_id
     JOIN patients     p  ON p.patient_id     = b.patient_id
@@ -52,7 +37,7 @@ function statusBadge(string $s): string {
 }
 function fmtDate(?string $d): string { return $d ? date('M j, Y', strtotime($d)) : '—'; }
 function fmtTime(?string $t): string { return $t ? date('g:i A', strtotime($t)) : '—'; }
-function peso(float $v): string { return '₱' . number_format($v, 2); }
+function peso(float $v): string { return '&#8369;' . number_format($v, 2); }
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -89,7 +74,11 @@ function peso(float $v): string { return '₱' . number_format($v, 2); }
 <div class="main-content">
   <header class="topbar">
     <div><span class="topbar-title">Admin Dashboard</span><span class="topbar-subtitle">— System Overview</span></div>
-    <div class="topbar-actions">
+    <div class="topbar-actions" style="display:flex;gap:10px;">
+      <button class="btn btn-ghost" id="reportBtn" style="border:1.5px solid var(--border);color:var(--text-body);">
+        <span class="btn-text"><i class="fas fa-chart-bar"></i> Summary Report</span>
+        <span class="spinner"></span>
+      </button>
       <button class="btn btn-primary" id="generateBtn">
         <span class="btn-text"><i class="fas fa-wand-magic-sparkles"></i> Generate Schedule</span>
         <span class="spinner"></span>
@@ -98,6 +87,7 @@ function peso(float $v): string { return '₱' . number_format($v, 2); }
   </header>
 
   <main class="page-content">
+
     <!-- Stats -->
     <div class="stats-grid">
       <div class="stat-card"><div class="stat-icon amber"><i class="fas fa-clock"></i></div><div class="stat-body"><div class="stat-value"><?= $stats['total_pending'] ?? 0 ?></div><div class="stat-label">Pending</div></div></div>
@@ -109,9 +99,8 @@ function peso(float $v): string { return '₱' . number_format($v, 2); }
       <div class="stat-card"><div class="stat-icon red"><i class="fas fa-ban"></i></div><div class="stat-body"><div class="stat-value"><?= $stats['total_cancelled'] ?? 0 ?></div><div class="stat-label">Cancelled</div></div></div>
     </div>
 
-    <!-- ══ APPOINTMENTS SECTION ══ -->
+    <!-- APPOINTMENTS SECTION -->
     <div id="admin-appointments">
-      <!-- Tabs -->
       <div class="section-tabs">
         <button class="section-tab active" data-tab="pending" onclick="switchTab('pending')">
           <i class="fas fa-clock"></i> Pending <span class="tab-badge amber"><?= count($pending) ?></span>
@@ -122,7 +111,9 @@ function peso(float $v): string { return '₱' . number_format($v, 2); }
         <button class="section-tab" data-tab="completed" onclick="switchTab('completed')">
           <i class="fas fa-circle-check"></i> Completed <span class="tab-badge"><?= count($completed) ?></span>
         </button>
-        
+        <button class="section-tab" data-tab="cancelled" onclick="switchTab('cancelled')">
+          <i class="fas fa-ban"></i> Cancelled <span class="tab-badge tab-badge-red"><?= count($cancelled) ?></span>
+        </button>
       </div>
 
       <!-- Pending -->
@@ -215,9 +206,37 @@ function peso(float $v): string { return '₱' . number_format($v, 2); }
         </div>
       </div>
 
+      <!-- Cancelled -->
+      <div id="section-cancelled" class="tab-section card" style="display:none;">
+        <div class="card-header"><span class="card-title"><i class="fas fa-ban"></i> Cancelled Appointments</span></div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table class="pulse-table">
+              <thead><tr><th>#</th><th>Patient</th><th>Doctor</th><th>Specialty</th><th>Date</th><th>Type</th><th>Cancelled On</th><th>Status</th></tr></thead>
+              <tbody>
+              <?php if (empty($cancelled)): ?>
+                <tr class="empty-row"><td colspan="8">No cancelled appointments.</td></tr>
+              <?php else: foreach ($cancelled as $a): ?>
+                <tr>
+                  <td style="color:var(--text-light);font-size:12px;">#<?= $a['appointment_id'] ?></td>
+                  <td class="bold"><?= htmlspecialchars($a['patient_name'] ?? '—') ?></td>
+                  <td><?= $a['doctor_name'] ? htmlspecialchars($a['doctor_name']) : '<em style="color:var(--text-muted)">Not assigned</em>' ?></td>
+                  <td><?= htmlspecialchars($a['specialty'] ?? '—') ?></td>
+                  <td><?= $a['appointment_date'] ? fmtDate($a['appointment_date']) : '<em style="color:var(--text-muted)">Not scheduled</em>' ?></td>
+                  <td><?= htmlspecialchars($a['appointment_type'] ?? '—') ?></td>
+                  <td style="font-size:12px;color:var(--text-muted);"><?= $a['updated_at'] ? date('M j, Y g:i A', strtotime($a['updated_at'])) : '—' ?></td>
+                  <td><?= statusBadge($a['status']) ?></td>
+                </tr>
+              <?php endforeach; endif; ?>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
     </div><!-- /admin-appointments -->
 
-    <!-- ══ BILLINGS SECTION ══ -->
+    <!-- BILLINGS SECTION -->
     <div id="admin-billings" style="display:none;">
       <div class="card">
         <div class="card-header">
@@ -239,10 +258,9 @@ function peso(float $v): string { return '₱' . number_format($v, 2); }
               <?php if (empty($billings)): ?>
                 <tr class="empty-row"><td colspan="8">No billing records found.</td></tr>
               <?php else: foreach ($billings as $b): ?>
-                <!-- billing row modification -->
-                <tr class="billing-row" 
-                data-payment-status="<?= htmlspecialchars($b['payment_status']) ?>"
-                data-appointment-status="<?= htmlspecialchars($b['appointment_status'] ?? '') ?>">
+                <tr class="billing-row"
+                    data-payment-status="<?= htmlspecialchars($b['payment_status']) ?>"
+                    data-appointment-status="<?= htmlspecialchars($b['appointment_status'] ?? '') ?>">
                   <td class="bold"><?= htmlspecialchars($b['patient_name'] ?? '—') ?></td>
                   <td><?= htmlspecialchars($b['doctor_name'] ?? '—') ?></td>
                   <td><?= fmtDate($b['appointment_date']) ?></td>
@@ -267,16 +285,17 @@ function peso(float $v): string { return '₱' . number_format($v, 2); }
   </main>
 </div>
 
+
 <!-- GREEDY RESULT MODAL -->
 <div id="greedyResultModal" class="modal-overlay">
-  <div class="modal-dialog modal-lg">
+  <!-- onclick="event.stopPropagation()" prevents clicks inside from closing the modal -->
+  <div class="modal-dialog modal-lg" onclick="event.stopPropagation()">
     <div class="modal-header">
       <div class="modal-header-icon" style="background:var(--accent-soft);color:var(--accent);"><i class="fas fa-wand-magic-sparkles"></i></div>
       <span class="modal-title">Schedule Generation Results</span>
       <button class="modal-close" onclick="closeGreedyModal()"><i class="fas fa-times"></i></button>
     </div>
     <div class="modal-body">
-      <!-- Summary pills -->
       <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
         <div class="stat-card" style="flex:1;min-width:120px;">
           <div class="stat-icon blue"><i class="fas fa-list"></i></div>
@@ -291,7 +310,6 @@ function peso(float $v): string { return '₱' . number_format($v, 2); }
           <div class="stat-body"><div class="stat-value" id="greedyFailed">0</div><div class="stat-label">Unassigned</div></div>
         </div>
       </div>
-      <!-- Detail list -->
       <div id="greedyResultList" class="schedule-result-list"></div>
     </div>
     <div class="modal-footer">
@@ -299,6 +317,114 @@ function peso(float $v): string { return '₱' . number_format($v, 2); }
     </div>
   </div>
 </div>
+
+
+<!-- SUMMARY REPORT MODAL -->
+<div id="reportModal" class="modal-overlay" role="dialog" aria-modal="true">
+  <!-- onclick="event.stopPropagation()" is the KEY FIX — prevents all inner clicks from bubbling to overlay -->
+  <div class="modal-dialog" style="max-width:680px;" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-header-icon" style="background:var(--accent-soft);color:var(--accent);">
+        <i class="fas fa-chart-bar"></i>
+      </div>
+      <span class="modal-title">Summary Report</span>
+      <button class="modal-close" onclick="closeReportModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">
+        <i class="fas fa-clock"></i> Generated: <span id="reportGeneratedAt">—</span>
+      </p>
+
+      <!-- Period Tabs -->
+      <div class="section-tabs" style="margin-bottom:16px;">
+        <button class="section-tab report-period-tab active" data-period="daily"
+                onclick="event.stopPropagation(); switchReportTab('daily')">
+          <i class="fas fa-calendar-day"></i> Daily
+        </button>
+        <button class="section-tab report-period-tab" data-period="monthly"
+                onclick="event.stopPropagation(); switchReportTab('monthly')">
+          <i class="fas fa-calendar-alt"></i> Monthly
+        </button>
+        <button class="section-tab report-period-tab" data-period="annual"
+                onclick="event.stopPropagation(); switchReportTab('annual')">
+          <i class="fas fa-calendar"></i> Annual
+        </button>
+      </div>
+
+      <!-- Daily -->
+      <div id="report-section-daily" class="report-period-section">
+        <div class="card" style="margin-bottom:0;">
+          <div class="card-header"><span class="card-title"><i class="fas fa-calendar-day"></i> Today's Summary</span></div>
+          <div class="card-body" style="padding:0;">
+            <div class="table-wrap">
+              <table class="pulse-table">
+                <thead><tr><th>Status</th><th>Count</th><th>Revenue</th><th>Payments</th><th></th></tr></thead>
+                <tbody id="report-daily-body">
+                  <tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Monthly -->
+      <div id="report-section-monthly" class="report-period-section" style="display:none;">
+        <div class="card" style="margin-bottom:0;">
+          <div class="card-header"><span class="card-title"><i class="fas fa-calendar-alt"></i> This Month's Summary</span></div>
+          <div class="card-body" style="padding:0;">
+            <div class="table-wrap">
+              <table class="pulse-table">
+                <thead><tr><th>Status</th><th>Count</th><th>Revenue</th><th>Payments</th><th></th></tr></thead>
+                <tbody id="report-monthly-body">
+                  <tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Annual -->
+      <div id="report-section-annual" class="report-period-section" style="display:none;">
+        <div class="card" style="margin-bottom:0;">
+          <div class="card-header"><span class="card-title"><i class="fas fa-calendar"></i> This Year's Summary</span></div>
+          <div class="card-body" style="padding:0;">
+            <div class="table-wrap">
+              <table class="pulse-table">
+                <thead><tr><th>Status</th><th>Count</th><th>Revenue</th><th>Payments</th><th></th></tr></thead>
+                <tbody id="report-annual-body">
+                  <tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted);"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Specialties -->
+      <div class="card" style="margin-top:16px;margin-bottom:0;">
+        <div class="card-header"><span class="card-title"><i class="fas fa-star"></i> Top Specialties This Month</span></div>
+        <div class="card-body">
+          <div id="reportTopSpecialties">
+            <p style="color:var(--text-muted);text-align:center;padding:10px;">Loading...</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="event.stopPropagation(); closeReportModal()">
+        <i class="fas fa-times"></i> Close
+      </button>
+      <button class="btn btn-primary" onclick="event.stopPropagation(); window.print()">
+        <i class="fas fa-print"></i> Print Report
+      </button>
+    </div>
+  </div>
+</div>
+
 
 <div id="toastContainer" class="toast-container"></div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -311,12 +437,10 @@ function peso(float $v): string { return '₱' . number_format($v, 2); }
     document.getElementById('admin-appointments').style.display = section === 'appointments' ? 'block' : 'none';
     document.getElementById('admin-billings').style.display     = section === 'billings'     ? 'block' : 'none';
   }
-
-  // Wire second generate button to same handler
   document.getElementById('generateBtn2')?.addEventListener('click', () => {
     document.getElementById('generateBtn')?.click();
   });
 </script>
 <script src="../../assets/js/admin.js"></script>
 </body>
-</html>
+</html> 

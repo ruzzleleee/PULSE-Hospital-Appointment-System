@@ -1,13 +1,8 @@
 <?php
 /**
  * PULSE — Process Payment API
- * File: pulse/api/process_payment.php
- *
- * CHANGES FROM ORIGINAL:
- *   1. Receipt query changed JOIN doctors → LEFT JOIN doctors
- *      so cancelled appointments (which may have no doctor assigned) don't fail.
- *   2. Receipt query now SELECTs a.status AS appointment_status so the
- *      front-end can show "Cancellation Fee Receipt" on the receipt modal.
+ * FIX: Revenue = appointment_fee (the bill), NOT amount_paid (what was handed over).
+ *      amount_paid is stored for receipt/change display only.
  */
 require_once '../includes/db.php';
 require_once '../includes/auth.php';
@@ -37,7 +32,7 @@ if (!in_array($method, $validMethods)) {
 }
 
 try {
-    // Verify this billing belongs to this patient and is Unpaid
+    // Verify billing belongs to this patient and is Unpaid
     $check = $pdo->prepare("
         SELECT b.billing_id, b.appointment_fee
         FROM billings b
@@ -55,7 +50,28 @@ try {
         exit;
     }
 
-    // Process payment — trg_after_billing_payment trigger sets paid_at automatically
+    $fee    = (float)$billing['appointment_fee'];
+
+    // Validate: customer must pay at least the fee amount
+    if ($amountPaid < $fee) {
+        echo json_encode([
+            'success' => false,
+            'message' => 'Amount paid (&#8369;' . number_format($amountPaid, 2) . ') is less than the bill (&#8369;' . number_format($fee, 2) . '). Please enter the correct amount.',
+        ]);
+        exit;
+    }
+
+    // Compute change
+    $change = round($amountPaid - $fee, 2);
+
+    /*
+     * REVENUE FIX EXPLANATION:
+     * - appointment_fee = the actual bill (e.g. 800) — this is what counts as revenue
+     * - amount_paid     = what the customer handed over (e.g. 1000) — stored for change/receipt
+     * - The admin revenue stat query should use SUM(appointment_fee) WHERE payment_status='Paid'
+     *   NOT SUM(amount_paid). We do NOT overwrite appointment_fee here.
+     * - We only update amount_paid and payment_method.
+     */
     $update = $pdo->prepare("
         UPDATE billings
         SET payment_status = 'Paid',
@@ -67,9 +83,7 @@ try {
     ");
     $update->execute([$amountPaid, $method, $appointmentId, $patientId]);
 
-    // Fetch full receipt data
-    // CHANGE 1: JOIN doctors → LEFT JOIN doctors (doctor may be NULL on cancelled appointments)
-    // CHANGE 2: Added a.status AS appointment_status for receipt Cancelled label
+    // Fetch receipt data
     $receipt = $pdo->prepare("
         SELECT
             b.billing_id,
@@ -84,7 +98,7 @@ try {
             a.appointment_date,
             a.appointment_time,
             a.appointment_type,
-            a.status          AS appointment_status
+            a.status AS appointment_status
         FROM billings b
         JOIN appointments a  ON a.appointment_id = b.appointment_id
         JOIN patients     p  ON p.patient_id     = b.patient_id
@@ -94,11 +108,13 @@ try {
     ");
     $receipt->execute([$appointmentId, $patientId]);
     $receiptData = $receipt->fetch();
+    $receiptData['change_amount'] = $change;
 
     echo json_encode([
-        'success' => true,
-        'message' => 'Payment processed successfully!',
-        'receipt' => $receiptData,
+        'success'       => true,
+        'message'       => 'Payment processed successfully!' . ($change > 0 ? ' Change: &#8369;' . number_format($change, 2) : ''),
+        'receipt'       => $receiptData,
+        'change_amount' => $change,
     ]);
 
 } catch (PDOException $e) {

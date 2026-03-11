@@ -5,37 +5,34 @@ requireRole('patient');
 
 $patientId = (int)$_SESSION['patient_id'];
 
-// ── Patient info ─────────────────────────────────────────────
+// Patient info
 $patientStmt = $pdo->prepare("SELECT * FROM patients WHERE patient_id = ? LIMIT 1");
 $patientStmt->execute([$patientId]);
 $patient = $patientStmt->fetch();
 
-// ── Appointments (via stored procedure) ──────────────────────
+// Appointments (via stored procedure)
 $apptStmt = $pdo->prepare("CALL sp_get_patient_appointments(?)");
 $apptStmt->execute([$patientId]);
 $appointments = $apptStmt->fetchAll();
-// Flush extra result sets from stored procedure
 try { while ($pdo->query("SELECT 1")) {} } catch (PDOException $e) {}
 
-// ── Services for booking dropdown ────────────────────────────
+// Services for booking dropdown
 $services = $pdo->query("SELECT service_id, specialty, service_name, base_fee FROM services ORDER BY specialty ASC")->fetchAll();
 
-// ── Helpers ──────────────────────────────────────────────────
+// Helpers
 function statusBadge(string $s): string {
     $map = ['Pending'=>'pending','Scheduled'=>'scheduled','Completed'=>'completed','Cancelled'=>'cancelled'];
     return "<span class=\"badge-status badge-" . ($map[$s] ?? 'pending') . "\">{$s}</span>";
 }
 function fmtDate(?string $d): string { return $d ? date('M j, Y', strtotime($d)) : '—'; }
 function fmtTime(?string $t): string { return $t ? date('g:i A', strtotime($t)) : '—'; }
-function peso(float $v): string { return '₱' . number_format($v, 2); }
+function peso(float $v): string { return '&#8369;' . number_format($v, 2); }
 
-// Group appointments by status
+// Group by status
 $pending   = array_filter($appointments, fn($a) => $a['status'] === 'Pending');
 $scheduled = array_filter($appointments, fn($a) => $a['status'] === 'Scheduled');
 $completed = array_filter($appointments, fn($a) => $a['status'] === 'Completed');
-// Cancel feature modification
 $cancelled = array_filter($appointments, fn($a) => $a['status'] === 'Cancelled');
-// end block
 
 $initials = strtoupper(substr($patient['patient_name'] ?? 'P', 0, 1));
 ?>
@@ -52,7 +49,7 @@ $initials = strtoupper(substr($patient['patient_name'] ?? 'P', 0, 1));
 </head>
 <body>
 
-<!-- ══ SIDEBAR ══════════════════════════════════════════════ -->
+<!-- SIDEBAR -->
 <aside class="sidebar">
   <a href="#" class="sidebar-logo">
     <div class="sidebar-logo-icon">
@@ -78,7 +75,7 @@ $initials = strtoupper(substr($patient['patient_name'] ?? 'P', 0, 1));
   </div>
 </aside>
 
-<!-- ══ MAIN ═════════════════════════════════════════════════ -->
+<!-- MAIN -->
 <div class="main-content">
   <header class="topbar">
     <div>
@@ -94,7 +91,7 @@ $initials = strtoupper(substr($patient['patient_name'] ?? 'P', 0, 1));
 
   <main class="page-content">
 
-    <!-- ── Stats ───────────────────────────────────────────── -->
+    <!-- Stats -->
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-icon amber"><i class="fas fa-clock"></i></div>
@@ -117,7 +114,6 @@ $initials = strtoupper(substr($patient['patient_name'] ?? 'P', 0, 1));
           <div class="stat-label">Completed</div>
         </div>
       </div>
-      <!-- patient dashboard cancelled card modification -->
       <div class="stat-card">
         <div class="stat-icon red"><i class="fas fa-ban"></i></div>
         <div class="stat-body">
@@ -125,10 +121,9 @@ $initials = strtoupper(substr($patient['patient_name'] ?? 'P', 0, 1));
           <div class="stat-label">Cancelled</div>
         </div>
       </div>
-      <!-- end block -->
     </div>
 
-    <!-- ── Appointment Tabs ────────────────────────────────── -->
+    <!-- Tabs -->
     <div id="patient-appointments">
       <div class="section-tabs">
         <button class="section-tab active" data-tab="pending" onclick="switchPatientTab('pending')">
@@ -143,12 +138,10 @@ $initials = strtoupper(substr($patient['patient_name'] ?? 'P', 0, 1));
           <i class="fas fa-circle-check"></i> Completed
           <span class="tab-badge"><?= count($completed) ?></span>
         </button>
-        <!-- Cancelled Tab modification -->
         <button class="section-tab" data-tab="cancelled" onclick="switchPatientTab('cancelled')">
           <i class="fas fa-ban"></i> Cancelled
           <span class="tab-badge tab-badge-red"><?= count($cancelled) ?></span>
         </button>
-        <!-- end block -->
       </div>
 
       <!-- Pending Tab -->
@@ -159,13 +152,9 @@ $initials = strtoupper(substr($patient['patient_name'] ?? 'P', 0, 1));
         <div class="card-body">
           <div class="table-wrap">
             <table class="pulse-table">
-
-              <!-- added a action column -->
               <thead>
                 <tr><th>#</th><th>Specialty</th><th>Type</th><th>Concern</th><th>Submitted</th><th>Status</th><th>Action</th></tr>
               </thead>
-              <!-- end block -->
-
               <tbody>
               <?php if (empty($pending)): ?>
                 <tr class="empty-row"><td colspan="7">No pending appointments.</td></tr>
@@ -184,22 +173,18 @@ $initials = strtoupper(substr($patient['patient_name'] ?? 'P', 0, 1));
                     <?= $a['created_at'] ? date('M j, Y g:i A', strtotime($a['created_at'])) : '—' ?>
                   </td>
                   <td><?= statusBadge($a['status']) ?></td>
-
-                  <!-- cancel button for pending appointments modification -->
                   <td>
                     <button class="btn btn-sm btn-cancel"
                       onclick="openCancelModal(
                         <?= $a['appointment_id'] ?>,
                         '<?= htmlspecialchars(addslashes($a['specialty'] ?? '')) ?>',
                         '<?= htmlspecialchars(addslashes($a['appointment_type'] ?? '')) ?>',
-                        null,
-                        null,
-                        null
+                        null, null, null,
+                        'Pending'
                       )">
                       <i class="fas fa-ban"></i> Cancel
                     </button>
                   </td>
-                  <!-- end block -->
                 </tr>
               <?php endforeach; endif; ?>
               </tbody>
@@ -216,13 +201,9 @@ $initials = strtoupper(substr($patient['patient_name'] ?? 'P', 0, 1));
         <div class="card-body">
           <div class="table-wrap">
             <table class="pulse-table">
-
-              <!-- Scheduled Appointments Table modification -->
               <thead>
                 <tr><th>#</th><th>Doctor</th><th>Specialty</th><th>Date</th><th>Time</th><th>Type</th><th>Payment</th><th>Status</th><th>Action</th></tr>
               </thead>
-              <!-- end block -->
-
               <tbody>
               <?php if (empty($scheduled)): ?>
                 <tr class="empty-row"><td colspan="9">No scheduled appointments yet.</td></tr>
@@ -255,7 +236,6 @@ $initials = strtoupper(substr($patient['patient_name'] ?? 'P', 0, 1));
                     <?php endif; ?>
                   </td>
                   <td><?= statusBadge($a['status']) ?></td>
-                  <!-- cancel button for scheduled appointments modification -->
                   <td>
                     <button class="btn btn-sm btn-cancel"
                       onclick="openCancelModal(
@@ -264,13 +244,12 @@ $initials = strtoupper(substr($patient['patient_name'] ?? 'P', 0, 1));
                         '<?= htmlspecialchars(addslashes($a['appointment_type'] ?? '')) ?>',
                         '<?= htmlspecialchars(addslashes($a['doctor_name'] ?? '')) ?>',
                         '<?= $a['appointment_date'] ?>',
-                        '<?= $a['appointment_time'] ?>'
+                        '<?= $a['appointment_time'] ?>',
+                        'Scheduled'
                       )">
                       <i class="fas fa-ban"></i> Cancel
                     </button>
                   </td>
-                  <!-- end block -->
-                   
                 </tr>
               <?php endforeach; endif; ?>
               </tbody>
@@ -323,7 +302,6 @@ $initials = strtoupper(substr($patient['patient_name'] ?? 'P', 0, 1));
                   </td>
                   <td><?= statusBadge($a['status']) ?></td>
                 </tr>
-                <!-- Notes / Prescription expandable row -->
                 <?php if ($a['notes'] || $a['prescription']): ?>
                 <tr>
                   <td colspan="8" style="padding:0 16px 12px;background:var(--surface-alt,#f9fafb);">
@@ -348,11 +326,11 @@ $initials = strtoupper(substr($patient['patient_name'] ?? 'P', 0, 1));
         </div>
       </div>
 
-      <!-- CANCEL FEATURE: Cancelled appointments tab section -->
+      <!-- Cancelled Tab -->
       <div id="section-cancelled" class="tab-section card" style="display:none;">
         <div class="card-header">
           <span class="card-title"><i class="fas fa-ban"></i> Cancelled Appointments</span>
-          <span style="font-size:12px;color:var(--text-muted);">A ₱200.00 cancellation fee applies to each cancelled appointment.</span>
+          <span style="font-size:12px;color:var(--text-muted);">A cancellation fee of &#8369;200.00 applies only to scheduled appointments that were cancelled.</span>
         </div>
         <div class="card-body">
           <div class="table-wrap">
@@ -375,7 +353,7 @@ $initials = strtoupper(substr($patient['patient_name'] ?? 'P', 0, 1));
                   </td>
                   <td><?= htmlspecialchars($a['appointment_type'] ?? '—') ?></td>
                   <td style="font-weight:600;color:var(--error);">
-                    <?= $a['billing_id'] ? peso((float)($a['appointment_fee'] ?? 200.00)) : '—' ?>
+                    <?= $a['billing_id'] ? peso((float)($a['appointment_fee'] ?? 200.00)) : '<span style="color:var(--text-muted);font-weight:400;">No fee</span>' ?>
                   </td>
                   <td>
                     <?php if ($a['billing_id'] && $a['payment_status'] === 'Unpaid'): ?>
@@ -405,55 +383,39 @@ $initials = strtoupper(substr($patient['patient_name'] ?? 'P', 0, 1));
           </div>
         </div>
       </div>
-      <!-- end block -->
 
     </div><!-- /patient-appointments -->
-
   </main>
 </div><!-- /main-content -->
 
 
-<!-- ══ BOOK APPOINTMENT MODAL ═══════════════════════════════ -->
+<!-- BOOK APPOINTMENT MODAL -->
 <div id="bookModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="bookModalTitle">
   <div class="modal-box">
     <button class="modal-close" onclick="closeBookModal()" aria-label="Close">
       <i class="fas fa-times"></i>
     </button>
-
-    <div class="modal-icon">
-      <i class="fas fa-calendar-plus"></i>
-    </div>
-
+    <div class="modal-icon"><i class="fas fa-calendar-plus"></i></div>
     <h2 class="modal-title" id="bookModalTitle">Book Appointment</h2>
     <p class="modal-subtitle">Fill in the details below. The admin will assign a doctor and schedule.</p>
-
     <div id="bookAlert" class="alert-container"></div>
-
     <form id="bookForm" novalidate>
-
-      <!-- Specialty / Service -->
       <div class="form-group mb-3">
         <label>SPECIALTY <span class="req">*</span></label>
         <select id="specialtySelect" name="service_id" class="form-control" required>
           <option value="">— Select a Specialty —</option>
           <?php foreach ($services as $svc): ?>
-            <option value="<?= $svc['service_id'] ?>"
-                    data-fee="<?= $svc['base_fee'] ?>">
-              <?= htmlspecialchars($svc['service_name']) ?>
-              (<?= htmlspecialchars($svc['specialty']) ?>)
+            <option value="<?= $svc['service_id'] ?>" data-fee="<?= $svc['base_fee'] ?>">
+              <?= htmlspecialchars($svc['service_name']) ?> (<?= htmlspecialchars($svc['specialty']) ?>)
             </option>
           <?php endforeach; ?>
         </select>
-        <!-- Fee preview badge — shown by patient.js after specialty selection -->
         <span id="feePreview" style="display:none;align-items:center;gap:6px;margin-top:8px;
               padding:6px 12px;background:var(--accent-soft,#e8f5e9);border-radius:20px;
               font-size:13px;font-weight:600;color:var(--accent,#2E7D32);">
-          <i class="fas fa-peso-sign"></i>
-          Consultation fee: <span id="feeAmount"></span>
+          <i class="fas fa-peso-sign"></i> Consultation fee: <span id="feeAmount"></span>
         </span>
       </div>
-
-      <!-- Appointment Type -->
       <div class="form-group mb-3">
         <label>APPOINTMENT TYPE <span class="req">*</span></label>
         <select name="appointment_type" class="form-control" required>
@@ -462,16 +424,12 @@ $initials = strtoupper(substr($patient['patient_name'] ?? 'P', 0, 1));
           <option value="Emergency">Emergency</option>
         </select>
       </div>
-
-      <!-- Concern / Reason -->
       <div class="form-group mb-4">
         <label>REASON / CONCERN <span class="req">*</span></label>
         <textarea name="concern" class="form-control" rows="3"
                   placeholder="Briefly describe your symptoms or reason for the visit..."
                   required style="resize:vertical;min-height:80px;"></textarea>
       </div>
-
-      <!-- Submit -->
       <button type="submit" class="btn-primary btn-submit-book">
         <span class="btn-text"><i class="fas fa-calendar-plus"></i>&ensp;Submit Appointment</span>
         <span class="spinner"></span>
@@ -481,45 +439,45 @@ $initials = strtoupper(substr($patient['patient_name'] ?? 'P', 0, 1));
 </div>
 
 
-<!-- CANCEL FEATURE: Cancel Appointment Modal -->
+<!-- CANCEL APPOINTMENT MODAL -->
 <div id="cancelModal" class="modal-overlay" role="dialog" aria-modal="true">
   <div class="modal-box">
     <button class="modal-close" onclick="closeCancelModal()" aria-label="Close">
       <i class="fas fa-times"></i>
     </button>
-
-    <div class="modal-icon modal-icon-danger">
-      <i class="fas fa-ban"></i>
-    </div>
-
+    <div class="modal-icon modal-icon-danger"><i class="fas fa-ban"></i></div>
     <h2 class="modal-title">Cancel Appointment?</h2>
 
-    <!-- Appointment summary populated by openCancelModal() -->
     <div class="cancel-summary-box">
       <div class="cancel-summary-row">
-        <span>Specialty</span>
-        <strong id="cancelSpecialty">—</strong>
+        <span>Specialty</span><strong id="cancelSpecialty">—</strong>
       </div>
       <div class="cancel-summary-row">
-        <span>Type</span>
-        <strong id="cancelType">—</strong>
+        <span>Type</span><strong id="cancelType">—</strong>
       </div>
       <div class="cancel-summary-row" id="cancelDoctorRow">
-        <span>Doctor</span>
-        <strong id="cancelDoctor">—</strong>
+        <span>Doctor</span><strong id="cancelDoctor">—</strong>
       </div>
       <div class="cancel-summary-row" id="cancelDateRow">
-        <span>Date &amp; Time</span>
-        <strong id="cancelDateTime">—</strong>
+        <span>Date &amp; Time</span><strong id="cancelDateTime">—</strong>
       </div>
     </div>
 
-    <!-- Fee warning -->
-    <div class="cancel-fee-warning">
+    <!-- Fee warning: shown only when cancelling a Scheduled appointment -->
+    <div id="cancelFeeWarning" class="cancel-fee-warning" style="display:none;">
       <i class="fas fa-triangle-exclamation"></i>
       <div>
-        <strong>Cancellation Fee: ₱200.00</strong>
-        <p>A non-refundable fee will be billed to your account. You must pay this fee to clear your balance.</p>
+        <strong>Cancellation Fee: &#8369;200.00</strong>
+        <p>Your appointment is already scheduled. A non-refundable fee will be billed to your account.</p>
+      </div>
+    </div>
+
+    <!-- No fee notice: shown when cancelling a Pending appointment -->
+    <div id="cancelNoFeeNotice" class="cancel-fee-warning" style="display:none;background:var(--info-bg,#EBF5FB);border-color:rgba(26,111,168,.2);color:var(--info,#1A6FA8);">
+      <i class="fas fa-circle-info"></i>
+      <div>
+        <strong>No Cancellation Fee</strong>
+        <p>Your appointment has not been scheduled yet. You can cancel at no charge.</p>
       </div>
     </div>
 
@@ -541,36 +499,28 @@ $initials = strtoupper(substr($patient['patient_name'] ?? 'P', 0, 1));
 </div>
 
 
-<!-- ══ PAYMENT MODAL ════════════════════════════════════════ -->
+<!-- PAYMENT MODAL -->
 <div id="paymentModal" class="modal-overlay" role="dialog" aria-modal="true">
   <div class="modal-box">
     <button class="modal-close" onclick="closePaymentModal()" aria-label="Close">
       <i class="fas fa-times"></i>
     </button>
-
-    <div class="modal-icon">
-      <i class="fas fa-peso-sign"></i>
-    </div>
-
+    <div class="modal-icon"><i class="fas fa-peso-sign"></i></div>
     <h2 class="modal-title">Pay Appointment</h2>
 
-    <!-- Summary -->
-    <div style="background:var(--surface-alt,#f9fafb);border-radius:10px;padding:14px 16px;margin-bottom:18px;font-size:14px;">
+    <div style="background:var(--surface-soft);border-radius:10px;padding:14px 16px;margin-bottom:18px;font-size:14px;">
       <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-        <span style="color:var(--text-muted);">Patient</span>
-        <strong id="payPatientName">—</strong>
+        <span style="color:var(--text-muted);">Patient</span><strong id="payPatientName">—</strong>
       </div>
       <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-        <span style="color:var(--text-muted);">Doctor</span>
-        <strong id="payDoctorName">—</strong>
+        <span style="color:var(--text-muted);">Doctor</span><strong id="payDoctorName">—</strong>
       </div>
       <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-        <span style="color:var(--text-muted);">Date &amp; Time</span>
-        <strong id="payApptDate">—</strong>
+        <span style="color:var(--text-muted);">Date &amp; Time</span><strong id="payApptDate">—</strong>
       </div>
       <div style="display:flex;justify-content:space-between;">
         <span style="color:var(--text-muted);">Consultation Fee</span>
-        <strong id="payFee" style="color:var(--accent,#2E7D32);">—</strong>
+        <strong id="payFee" style="color:var(--accent);">—</strong>
       </div>
     </div>
 
@@ -585,6 +535,14 @@ $initials = strtoupper(substr($patient['patient_name'] ?? 'P', 0, 1));
           <input type="number" name="amount_paid" class="form-control"
                  placeholder="Enter amount" min="1" step="0.01" required/>
         </div>
+      </div>
+
+      <!-- Live change calculation row -->
+      <div id="changeRow" style="display:none;justify-content:space-between;align-items:center;
+           padding:10px 14px;background:var(--surface-soft);border-radius:8px;margin-bottom:12px;
+           font-size:14px;border:1px solid var(--border);">
+        <span style="color:var(--text-muted);">Change</span>
+        <strong id="changeAmount" style="color:var(--success);">&#8369;0.00</strong>
       </div>
 
       <div class="form-group mb-4">
@@ -607,25 +565,20 @@ $initials = strtoupper(substr($patient['patient_name'] ?? 'P', 0, 1));
 </div>
 
 
-<!-- ══ RECEIPT MODAL ════════════════════════════════════════ -->
+<!-- RECEIPT MODAL -->
 <div id="receiptModal" class="modal-overlay" role="dialog" aria-modal="true">
   <div class="modal-box" style="max-width:480px;">
     <button class="modal-close" onclick="closeReceiptModal()" aria-label="Close">
       <i class="fas fa-times"></i>
     </button>
-
     <div style="text-align:center;margin-bottom:16px;">
       <div class="modal-icon" style="background:var(--accent-soft,#e8f5e9);color:var(--accent,#2E7D32);">
         <i class="fas fa-receipt"></i>
       </div>
       <h2 class="modal-title">Payment Receipt</h2>
-
-      <!-- Cancellation receipt label modification -->
       <span id="rcptCancelledLabel" class="rcpt-cancelled-label" style="display:none;">
         <i class="fas fa-ban"></i> Cancellation Fee Receipt
       </span>
-      <!-- end block -->
-       
       <p class="modal-subtitle">Official Receipt — PULSE Health System</p>
     </div>
 
@@ -649,25 +602,26 @@ $initials = strtoupper(substr($patient['patient_name'] ?? 'P', 0, 1));
           <strong id="<?= $id ?>">—</strong>
         </div>
       <?php endforeach; ?>
+      <!-- Change row (hidden if no change) -->
+      <div id="rcptChangeRow" style="display:none;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border,#eee);">
+        <span style="color:var(--text-muted);">Change</span>
+        <strong id="rcptChange" style="color:var(--success);">—</strong>
+      </div>
     </div>
 
     <div style="display:flex;gap:10px;">
       <button class="btn-primary" onclick="printReceipt()" style="flex:1;">
         <i class="fas fa-print"></i> Print
       </button>
-      <button class="btn btn-ghost" onclick="closeReceiptModal()" style="flex:1;">
-        Close
-      </button>
+      <button class="btn btn-ghost" onclick="closeReceiptModal()" style="flex:1;">Close</button>
     </div>
   </div>
 </div>
 
 
 <div id="toastContainer" class="toast-container"></div>
-
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-  /* ── Tab switcher (server-side, inline) ─────────────────── */
   function switchPatientTab(tab) {
     document.querySelectorAll('.section-tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.tab-section').forEach(s => s.style.display = 'none');
@@ -676,7 +630,6 @@ $initials = strtoupper(substr($patient['patient_name'] ?? 'P', 0, 1));
     if (activeTab) activeTab.classList.add('active');
     if (section)   section.style.display = 'block';
   }
-
   function showSection(sec) {
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.querySelectorAll(`[onclick*="${sec}"]`).forEach(n => n.classList.add('active'));
