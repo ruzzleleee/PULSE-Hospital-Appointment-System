@@ -93,7 +93,7 @@ function peso(float $v): string { return '&#8369;' . number_format($v, 2); }
       <div class="stat-card"><div class="stat-icon amber"><i class="fas fa-clock"></i></div><div class="stat-body"><div class="stat-value"><?= $stats['total_pending'] ?? 0 ?></div><div class="stat-label">Pending</div></div></div>
       <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-calendar-check"></i></div><div class="stat-body"><div class="stat-value"><?= $stats['total_scheduled'] ?? 0 ?></div><div class="stat-label">Scheduled</div></div></div>
       <div class="stat-card"><div class="stat-icon success"><i class="fas fa-circle-check"></i></div><div class="stat-body"><div class="stat-value"><?= $stats['total_completed'] ?? 0 ?></div><div class="stat-label">Completed</div></div></div>
-      <div class="stat-card"><div class="stat-icon green"><i class="fas fa-peso-sign"></i></div><div class="stat-body"><div class="stat-value"><?= peso((float)($stats['total_revenue'] ?? 0)) ?></div><div class="stat-label">Total Revenue</div></div></div>
+      <div class="stat-card"><div class="stat-icon green"><i class="fas fa-peso-sign"></i></div><div class="stat-body"><div class="stat-value small"><?= peso((float)($stats['total_revenue'] ?? 0)) ?></div><div class="stat-label">Revenue</div></div></div>
       <div class="stat-card"><div class="stat-icon amber"><i class="fas fa-file-invoice"></i></div><div class="stat-body"><div class="stat-value"><?= $stats['total_unpaid_bills'] ?? 0 ?></div><div class="stat-label">Unpaid Bills</div></div></div>
       <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-user-injured"></i></div><div class="stat-body"><div class="stat-value"><?= $stats['total_patients'] ?? 0 ?></div><div class="stat-label">Patients</div></div></div>
       <div class="stat-card"><div class="stat-icon red"><i class="fas fa-ban"></i></div><div class="stat-body"><div class="stat-value"><?= $stats['total_cancelled'] ?? 0 ?></div><div class="stat-label">Cancelled</div></div></div>
@@ -223,8 +223,8 @@ function peso(float $v): string { return '&#8369;' . number_format($v, 2); }
                   <td><?= $a['doctor_name'] ? htmlspecialchars($a['doctor_name']) : '<em style="color:var(--text-muted)">Not assigned</em>' ?></td>
                   <td><?= htmlspecialchars($a['specialty'] ?? '—') ?></td>
                   <td><?= $a['appointment_date'] ? fmtDate($a['appointment_date']) : '<em style="color:var(--text-muted)">Not scheduled</em>' ?></td>
-                  <td><?= htmlspecialchars($a['appointment_type'] ?? '—') ?></td>
-                  <td style="font-size:12px;color:var(--text-muted);"><?= $a['updated_at'] ? date('M j, Y g:i A', strtotime($a['updated_at'])) : '—' ?></td>
+          <td style="font-size:12px;color:var(--text-muted);"><?= !empty($a['updated_at']) ? date('M j, Y g:i A', strtotime($a['updated_at'])) : '—' ?></td>       <td><?= htmlspecialchars($a['appointment_type'] ?? '—') ?></td>
+                  
                   <td><?= statusBadge($a['status']) ?></td>
                 </tr>
               <?php endforeach; endif; ?>

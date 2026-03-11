@@ -13,8 +13,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 // ── Authentication Keys ───────────────────────────────────────
 // IMPORTANT: Change these keys to something secret before going to production.
-define('DOCTOR_AUTH_KEY', 'PULSE-DOCTOR-2025');
-define('ADMIN_AUTH_KEY',  'PULSE-ADMIN-2025');
+define('DOCTOR_AUTH_KEY', '258741');
+define('ADMIN_AUTH_KEY',  '147852');
 
 $first_name = trim($_POST['first_name']       ?? '');
 $last_name  = trim($_POST['last_name']        ?? '');

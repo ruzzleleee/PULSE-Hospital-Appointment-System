@@ -1119,6 +1119,10 @@ select.form-control {
   line-height: 1.5;
 }
 
+.stat-value.small {
+  font-size: 18px;
+}
+
 /* ── Receipt modal: Cancelled label badge ──────────────────────────── */
 .rcpt-cancelled-label {
   display: inline-flex;
