@@ -56,7 +56,7 @@ try {
     if ($amountPaid < $fee) {
         echo json_encode([
             'success' => false,
-            'message' => 'Amount paid (&#8369;' . number_format($amountPaid, 2) . ') is less than the bill (&#8369;' . number_format($fee, 2) . '). Please enter the correct amount.',
+            'message' => 'Amount paid (₱' . number_format($amountPaid, 2) . ') is less than the bill (₱' . number_format($fee, 2) . '). Please enter the correct amount.',
         ]);
         exit;
     }
@@ -112,11 +112,14 @@ try {
 
     echo json_encode([
         'success'       => true,
-        'message'       => 'Payment processed successfully!' . ($change > 0 ? ' Change: &#8369;' . number_format($change, 2) : ''),
+        'message'       => 'Payment processed successfully!' . ($change > 0 ? ' Change: ₱' . number_format($change, 2) : ''),
         'receipt'       => $receiptData,
         'change_amount' => $change,
     ]);
 
 } catch (PDOException $e) {
-    echo json_encode(['success' => false, 'message' => 'Payment failed. Please try again.']);
+   echo json_encode([
+    'success' => false,
+    'message' => 'Amount paid (₱' . number_format($amountPaid, 2) . ') is less than the bill (₱' . number_format($fee, 2) . '). Please enter the correct amount.'
+]);
 }

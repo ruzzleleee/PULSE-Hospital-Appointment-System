@@ -215,11 +215,12 @@
     currentPaymentFee    = parseFloat(fee) || 0;
     clearAlert('paymentAlert');
 
-    const set = (id, val) => { const el = $(id); if (el) el.textContent = val; };
+    const set     = (id, val) => { const el = $(id); if (el) el.textContent = val; };
+    const setHtml = (id, val) => { const el = $(id); if (el) el.innerHTML  = val; };
     set('payPatientName', patientName);
     set('payDoctorName',  doctorName + (specialty ? ' — ' + specialty : ''));
     set('payApptDate',    formatDate(apptDate) + ' at ' + formatTime(apptTime));
-    set('payFee',         formatPeso(currentPaymentFee));
+    setHtml('payFee',     formatPeso(currentPaymentFee));
 
     const payForm = $('paymentForm');
     if (payForm) payForm.reset();
